@@ -2,74 +2,74 @@
 const { MindARThree } = window.MINDAR.FACE;
 const { THREE } = window;
 
-// ── Emote definitions ─────────────────────────────────────────────────────────
-// Add or remove emotes here. Each needs an `emoji` char and a display `label`.
-const EMOTES = [
-  { emoji: "🐝", label: "Bee" },
-  { emoji: "⭐", label: "Star" },
-  { emoji: "❤️", label: "Heart" },
-  { emoji: "🔥", label: "Fire" },
-  { emoji: "😂", label: "Laugh" },
-  { emoji: "🎉", label: "Party" },
+// ── PNG emotes — alternates every SWAP_INTERVAL ms ───────────────────────────
+const PNG_EMOTES = [
+  { src: "assets/emotes/bee.png",   label: "Bee" },
+  { src: "assets/emotes/Jolli.png", label: "Jolli" },
 ];
+const SWAP_INTERVAL = 1000; // milliseconds
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let emoteSprite = null;
-let currentIndex = 0;
-let mindarThree = null;
+let emoteSprite  = null;
+let mindarThree  = null;
+let faceVisible  = false;
+const textures   = []; // loaded PNG textures
+
+// ── Bounce animation state ────────────────────────────────────────────────────
+let bounceT = 0;
+const BOUNCE_SPEED = 2.2; // radians / second
+const BOUNCE_AMP   = 0.04; // world units
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Draws an emoji onto a canvas and returns a Three.js CanvasTexture.
- * Using canvas text keeps things dependency-free and works on all platforms.
+ * Load both PNG textures and return a promise that resolves when done.
  */
-function makeEmojiTexture(emoji) {
-  const SIZE = 256;
-  const canvas = document.createElement("canvas");
-  canvas.width = SIZE;
-  canvas.height = SIZE;
-  const ctx = canvas.getContext("2d");
-  ctx.font = `${SIZE * 0.78}px serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(emoji, SIZE / 2, SIZE / 2);
-  return new THREE.CanvasTexture(canvas);
+function loadTextures() {
+  const loader = new THREE.TextureLoader();
+  return Promise.all(
+    PNG_EMOTES.map(
+      (e) =>
+        new Promise((resolve, reject) => {
+          loader.load(e.src, resolve, undefined, reject);
+        })
+    )
+  ).then((loaded) => loaded.forEach((t) => textures.push(t)));
 }
 
 /**
- * Swaps the emote sprite's texture to `EMOTES[index]`.
- * Disposes the old texture to avoid GPU memory leaks.
+ * Start alternating the sprite texture every SWAP_INTERVAL ms.
  */
-function swapEmote(index) {
-  currentIndex = index;
-  const oldMap = emoteSprite.material.map;
-  emoteSprite.material.map = makeEmojiTexture(EMOTES[index].emoji);
-  emoteSprite.material.needsUpdate = true;
-  if (oldMap) oldMap.dispose();
-
-  // Update button highlight
-  document.querySelectorAll(".emote-btn").forEach((btn, i) => {
-    btn.classList.toggle("active", i === index);
-  });
+function startAlternating() {
+  let idx = 0;
+  setInterval(() => {
+    idx = (idx + 1) % textures.length;
+    emoteSprite.material.map = textures[idx];
+    emoteSprite.material.needsUpdate = true;
+    bounceT = 0; // pop on swap
+  }, SWAP_INTERVAL);
 }
 
 /**
- * Captures the renderer's canvas + video composited onto a 2-D canvas,
- * then triggers a PNG download.
+ * Flash the screen white and download a PNG of the AR view.
  */
 function takeScreenshot() {
-  // MindAR places the video and the WebGL canvas inside #container
-  const video = document.querySelector("#container video");
+  const video    = document.querySelector("#container video");
   const glCanvas = document.querySelector("#container canvas");
   if (!video || !glCanvas) return;
 
+  // White flash feedback
+  const flash = document.getElementById("flash");
+  if (flash) {
+    flash.classList.remove("active");
+    void flash.offsetWidth;
+    flash.classList.add("active");
+  }
+
   const out = document.createElement("canvas");
-  out.width = glCanvas.width;
+  out.width  = glCanvas.width;
   out.height = glCanvas.height;
   const ctx = out.getContext("2d");
-
-  // Draw video frame first, then the AR layer on top
   ctx.drawImage(video, 0, 0, out.width, out.height);
   ctx.drawImage(glCanvas, 0, 0);
 
@@ -79,29 +79,26 @@ function takeScreenshot() {
   link.click();
 }
 
-// ── Build emote selector UI ───────────────────────────────────────────────────
+// ── Build UI (screenshot button only) ────────────────────────────────────────
 function buildUI() {
-  const ui = document.getElementById("ui");
-  EMOTES.forEach((emote, i) => {
-    const btn = document.createElement("button");
-    btn.className = "emote-btn" + (i === 0 ? " active" : "");
-    btn.textContent = emote.emoji;
-    btn.setAttribute("aria-label", emote.label);
-    btn.addEventListener("click", () => swapEmote(i));
-    ui.appendChild(btn);
-  });
-
   document.getElementById("snap-btn").addEventListener("click", takeScreenshot);
+}
+
+// ── No-face overlay helper ────────────────────────────────────────────────────
+function setFaceVisible(visible) {
+  if (faceVisible === visible) return;
+  faceVisible = visible;
+  const el = document.getElementById("no-face");
+  el.classList.toggle("hidden", visible);
+  emoteSprite.visible = visible;
 }
 
 // ── Main AR setup ─────────────────────────────────────────────────────────────
 async function start() {
   mindarThree = new MindARThree({
     container: document.querySelector("#container"),
-    // Smoothing: lower filterMinCF = smoother but more latency
     filterMinCF: 0.001,
     filterBeta: 1000,
-    // MindAR built-in loading overlay
     uiLoading: "yes",
     uiScanning: "no",
     uiError: "yes",
@@ -109,42 +106,62 @@ async function start() {
 
   const { renderer, scene, camera } = mindarThree;
 
-  // Ambient light — needed if you swap in .glb models later
+  // Pixel ratio cap — keeps mobile GPU load reasonable
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
   scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
-  // ── Emote sprite ──────────────────────────────────────────────────────────
+  // ── Load PNG textures then build sprite ───────────────────────────────────
+  await loadTextures();
+
   const material = new THREE.SpriteMaterial({
-    map: makeEmojiTexture(EMOTES[currentIndex].emoji),
+    map: textures[0],
     transparent: true,
     depthTest: false,
   });
   emoteSprite = new THREE.Sprite(material);
-
-  // Scale: 0.4 world-units wide — tune if emote looks too big/small
-  emoteSprite.scale.set(0.4, 0.4, 0.4);
-
-  // Vertical offset so the emote floats above the forehead point
+  emoteSprite.scale.set(0.45, 0.45, 0.45);
   emoteSprite.position.set(0, 0.15, 0);
+  emoteSprite.visible = false; // hidden until face found
 
-  // ── Face anchor ───────────────────────────────────────────────────────────
-  // Landmark 1 is the forehead centre in MediaPipe's 468-point face mesh.
+  // Start 1-second alternating loop
+  startAlternating();
+
+  // ── Face anchor — landmark 1 = forehead centre ────────────────────────────
   const anchor = mindarThree.addAnchor(1);
   anchor.group.add(emoteSprite);
 
-  // Show/hide emote when face enters/leaves frame
-  anchor.onTargetFound = () => { emoteSprite.visible = true; };
-  anchor.onTargetLost  = () => { emoteSprite.visible = false; };
+  anchor.onTargetFound = () => setFaceVisible(true);
+  anchor.onTargetLost  = () => setFaceVisible(false);
 
-  // ── Render loop ───────────────────────────────────────────────────────────
-  renderer.setAnimationLoop(() => renderer.render(scene, camera));
+  // ── Render loop with bounce animation ─────────────────────────────────────
+  let lastTime = performance.now();
+  renderer.setAnimationLoop(() => {
+    const now   = performance.now();
+    const delta = (now - lastTime) / 1000; // seconds
+    lastTime = now;
 
-  // Start camera + face detection
+    if (faceVisible) {
+      bounceT += delta * BOUNCE_SPEED;
+      emoteSprite.position.y = 0.15 + Math.sin(bounceT) * BOUNCE_AMP;
+    }
+
+    renderer.render(scene, camera);
+  });
+
   await mindarThree.start();
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 buildUI();
+// Inject flash div
+const flash = document.createElement("div");
+flash.id = "flash";
+document.body.appendChild(flash);
+
 start().catch((err) => {
   console.error("MindAR failed to start:", err);
-  alert("Could not start AR. Please allow camera access and use HTTPS.");
+  const noFace = document.getElementById("no-face");
+  noFace.querySelector("span").textContent = "⚠️";
+  noFace.querySelector("p").textContent = "Camera access denied or HTTPS required";
 });

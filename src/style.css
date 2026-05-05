@@ -10,75 +10,96 @@ html, body {
   height: 100%;
   background: #000;
   overflow: hidden;
-  font-family: sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── AR container ──────────────────────────────────── */
-/* MindAR renders its <video> + <canvas> inside here */
 #container {
   position: relative;
   width: 100vw;
   height: 100vh;
 }
 
-/* ── Emote selector bar ────────────────────────────── */
-#ui {
+/* ── No-face overlay ───────────────────────────────── */
+#no-face {
   position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
+  inset: 0;
   display: flex;
-  gap: 10px;
+  flex-direction: column;
   align-items: center;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(8px);
-  padding: 10px 18px;
-  border-radius: 60px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255,255,255,0.7);
+  pointer-events: none;
+  z-index: 50;
+  transition: opacity 0.4s;
+}
+#no-face span { font-size: 3.5rem; }
+#no-face p    { font-size: 0.95rem; letter-spacing: 0.03em; }
+#no-face.hidden { opacity: 0; }
+
+/* ── Top bar ───────────────────────────────────────── */
+#top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%);
   z-index: 100;
 }
 
-.emote-btn {
-  font-size: 1.9rem;
-  line-height: 1;
-  background: transparent;
-  border: 2px solid transparent;
-  border-radius: 50%;
-  width: 52px;
-  height: 52px;
-  cursor: pointer;
-  transition: border-color 0.2s, transform 0.12s, background 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.emote-btn:hover {
-  transform: scale(1.2);
-}
-
-.emote-btn.active {
-  border-color: #fff;
-  background: rgba(255, 255, 255, 0.18);
+#app-title {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
 
 /* ── Screenshot button ─────────────────────────────── */
 #snap-btn {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  font-size: 1.5rem;
-  background: rgba(0, 0, 0, 0.55);
+  font-size: 1.4rem;
+  background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  width: 50px;
-  height: 50px;
+  width: 44px;
+  height: 44px;
   cursor: pointer;
-  z-index: 100;
-  transition: transform 0.12s;
+  transition: transform 0.12s, background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#snap-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.25); }
+
+/* ── Snap flash feedback ───────────────────────────── */
+@keyframes snap-flash {
+  0%   { opacity: 0.7; }
+  100% { opacity: 0; }
+}
+#flash {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 200;
+}
+#flash.active {
+  animation: snap-flash 0.3s ease-out forwards;
 }
 
-#snap-btn:hover {
-  transform: scale(1.1);
+/* ── Pop-in animation when emote first appears ─────── */
+@keyframes emote-pop {
+  0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+  70%  { transform: scale(1.2) rotate(5deg);  opacity: 1; }
+  100% { transform: scale(1)   rotate(0deg);  opacity: 1; }
 }

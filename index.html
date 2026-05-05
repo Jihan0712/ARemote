@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="JollibeeAR – put a Jollibee emote on your forehead!" />
     <title>JollibeeAR</title>
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="manifest.json" />
 
     <!-- MindAR face bundle (includes Three.js r128) -->
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-three.prod.js"></script>
@@ -14,11 +19,17 @@
     <!-- MindAR mounts its video + canvas here -->
     <div id="container"></div>
 
-    <!-- Screenshot button -->
-    <button id="snap-btn" title="Take screenshot">📸</button>
+    <!-- No-face overlay -->
+    <div id="no-face">
+      <span>😶</span>
+      <p>Point your camera at a face</p>
+    </div>
 
-    <!-- Emote selector bar -->
-    <div id="ui"></div>
+    <!-- Top bar -->
+    <div id="top-bar">
+      <span id="app-title">JollibeeAR</span>
+      <button id="snap-btn" title="Take screenshot">📸</button>
+    </div>
 
     <script type="module" src="src/main.js"></script>
   </body>
