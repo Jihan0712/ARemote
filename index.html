@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>JollibeeAR</title>
+
+    <!-- MindAR face bundle (includes Three.js r128) -->
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-three.prod.js"></script>
+
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
+    <!-- MindAR mounts its video + canvas here -->
+    <div id="container"></div>
+
+    <!-- Screenshot button -->
+    <button id="snap-btn" title="Take screenshot">📸</button>
+
+    <!-- Emote selector bar -->
+    <div id="ui"></div>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>

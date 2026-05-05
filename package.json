@@ -1,0 +1,9 @@
+{
+  "name": "jollibee-ar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebAR face emote — Three.js + MindAR",
+  "scripts": {
+    "dev": "npx serve . --listen 8080"
+  }
+}
