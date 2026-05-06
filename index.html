@@ -1,82 +1,121 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="JollibeeAR – put a Jollibee emote on your forehead!" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>JollibeeAR</title>
-
-    <!-- PWA manifest -->
-    <link rel="manifest" href="manifest.json" />
-
-    <!-- A-Frame + MindAR face bundle -->
-    <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var beeImg   = document.getElementById("bee-img");
+        var jolliImg = document.getElementById("jolli-img");
+        var noFace   = document.getElementById("no-face");
+        var showBee  = true;
 
-    <link rel="stylesheet" href="src/style.css" />
+        // Alternate every 1s — MindAR hides the parent entity when no face,
+        // so emotes only render when a face is actually tracked.
+        setInterval(function () {
+          showBee = !showBee;
+          beeImg.setAttribute("visible",   String(showBee));
+          jolliImg.setAttribute("visible", String(!showBee));
+        }, 1000);
+
+        // Hide the "point camera at face" prompt once AR is live
+        document.querySelector("a-scene").addEventListener("arReady", function () {
+          noFace.style.display = "none";
+        });
+      });
+    </script>
+    <style>
+      body {
+        margin: 0;
+      }
+      .example-container {
+        overflow: hidden;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+      }
+      #no-face {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        color: rgba(255,255,255,0.85);
+        pointer-events: none;
+        z-index: 50;
+        font-family: sans-serif;
+        text-align: center;
+      }
+      #no-face span { font-size: 3rem; }
+      #no-face p    { font-size: 1rem; }
+      #top-bar {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%);
+        z-index: 100;
+        font-family: sans-serif;
+        color: #fff;
+      }
+      #app-title { font-weight: bold; font-size: 1.1rem; }
+      #snap-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+      }
+    </style>
   </head>
   <body>
-    <div class="ar-container">
+    <div id="top-bar">
+      <span id="app-title">JollibeeAR</span>
+      <button id="snap-btn" title="Take screenshot">📸</button>
+    </div>
 
-      <!-- Insecure-context banner: shown by JS when not HTTPS/localhost -->
-      <div id="insecure-banner">
-        <span>🔒</span>
-        <strong>Camera requires a secure connection</strong>
-        <p>Open via <b>Live Server</b> in VS Code<br>(right-click index.html → Open with Live Server)<br>or deploy to Vercel for HTTPS.</p>
-      </div>
+    <div id="no-face">
+      <span>😶</span>
+      <p>Point your camera at a face</p>
+    </div>
 
-      <!-- UI overlays -->
-      <div id="top-bar">
-        <span id="app-title">JollibeeAR</span>
-        <button id="snap-btn" title="Take screenshot">📸</button>
-      </div>
-
-      <!-- starts visible — becomes hidden when face is found -->
-      <div id="no-face">
-        <span>😶</span>
-        <p>Loading… point your camera at a face</p>
-      </div>
-
-      <div id="flash"></div>
-
-      <!-- A-Frame AR scene — structure mirrors the working MindAR example -->
-      <a-scene mindar-face
-               embedded
-               color-space="sRGB"
-               renderer="colorManagement: true, physicallyCorrectLights, preserveDrawingBuffer: true"
-               vr-mode-ui="enabled: false"
-               device-orientation-permission-ui="enabled: false">
-
-        <a-assets timeout="5000">
-          <img id="bee-tex"   src="assets/emotes/bee.png"   crossorigin="anonymous" />
-          <img id="jolli-tex" src="assets/emotes/Jolli.png" crossorigin="anonymous" />
+    <div class="example-container">
+      <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+        <a-assets>
+          <a-asset-item id="headModel" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/face-tracking/assets/sparkar/headOccluder.glb"></a-asset-item>
+          <img id="bee-tex"   src="assets/emotes/bee.png" />
+          <img id="jolli-tex" src="assets/emotes/Jolli.png" />
         </a-assets>
 
-        <a-camera active="false" position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-camera active="false" position="0 0 0"></a-camera>
 
-        <!-- Forehead emote — anchor 10 = top of forehead -->
-        <a-entity id="forehead-anchor" mindar-face-target="anchorIndex: 10">
+        <!-- head occluder — required for face mesh to initialise -->
+        <a-entity mindar-face-target="anchorIndex: 168">
+          <a-gltf-model mindar-face-occluder position="0 -0.3 0.15" rotation="0 0 0" scale="0.065 0.065 0.065" src="#headModel"></a-gltf-model>
+        </a-entity>
+
+        <!-- anchor 168 = nose bridge, emotes offset up to forehead -->
+        <a-entity id="anchor-168" mindar-face-target="anchorIndex: 168">
           <a-image id="bee-img"
                    src="#bee-tex"
-                   position="0 0 0.1"
-                   width="0.5" height="0.5"
+                   position="0 0.7 0"
+                   width="1.2" height="1.2"
                    transparent="true"
-                   visible="false"></a-image>
+                   visible="true"></a-image>
           <a-image id="jolli-img"
                    src="#jolli-tex"
-                   position="0 0 0.1"
-                   width="0.5" height="0.5"
+                   position="0 0.7 0"
+                   width="1.2" height="1.2"
                    transparent="true"
                    visible="false"></a-image>
         </a-entity>
-
       </a-scene>
     </div>
-
-    <script src="src/main.js" defer></script>
   </body>
 </html>
