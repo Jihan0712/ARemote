@@ -28,7 +28,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }, SWAP_INTERVAL);
 
   // ── MindAR error handler ───────────────────────────────────────────────────
-  scene.addEventListener("arReady",  () => console.log("[AR] arReady — MindAR started"));
+  scene.addEventListener("arReady",  () => {
+    console.log("[AR] arReady — MindAR started");
+    // Check the video element MindAR created — if size is 0x0 the camera feed is broken
+    setTimeout(() => {
+      const video = document.querySelector("video");
+      if (!video) {
+        console.error("[AR] No <video> element found — camera feed missing entirely");
+      } else {
+        console.log(`[AR] video readyState=${video.readyState} size=${video.videoWidth}x${video.videoHeight} paused=${video.paused} srcObject=${!!video.srcObject}`);
+        if (video.videoWidth === 0) console.warn("[AR] Video has 0 width — frames may not be reaching TensorFlow");
+      }
+    }, 1500);
+  });
   scene.addEventListener("arError",  (e) => {
     console.error("[AR] arError", e.detail || e);
     noFace.querySelector("span").textContent = "⚠️";
@@ -36,7 +48,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ── Face-anchor tracking events ────────────────────────────────────────────
+  let noFaceTimer = setTimeout(() => {
+    if (!isTracking) {
+      console.warn("[AR] 10s — still no face detected. Check lighting & face the camera directly.");
+      noFace.querySelector("p").textContent = "No face found — face camera, improve lighting";
+    }
+  }, 10000);
+
   anchor.addEventListener("targetFound", () => {
+    clearTimeout(noFaceTimer);
     isTracking = true;
     noFace.classList.add("hidden");
     beeImg.setAttribute("visible",   String(showBee));
