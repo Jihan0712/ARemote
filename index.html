@@ -43,9 +43,8 @@
 
       <div id="flash"></div>
 
-      <!-- A-Frame AR scene -->
-      <!-- uiLoading/uiError: use MindAR's built-in loading + error overlays -->
-      <a-scene mindar-face="uiLoading: yes; uiError: yes"
+      <!-- A-Frame AR scene — structure mirrors the working MindAR example -->
+      <a-scene mindar-face
                embedded
                color-space="sRGB"
                renderer="colorManagement: true, physicallyCorrectLights, preserveDrawingBuffer: true"
@@ -53,11 +52,22 @@
                device-orientation-permission-ui="enabled: false">
 
         <a-assets>
+          <!-- Head occluder (makes tracking more stable) -->
+          <a-asset-item id="headModel" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/face-tracking/assets/sparkar/headOccluder.glb"></a-asset-item>
           <img id="bee-tex"   src="assets/emotes/bee.png"   crossorigin="anonymous" />
           <img id="jolli-tex" src="assets/emotes/Jolli.png" crossorigin="anonymous" />
         </a-assets>
 
         <a-camera active="false" position="0 0 0"></a-camera>
+
+        <!-- Head occluder anchor — same as working example -->
+        <a-entity mindar-face-target="anchorIndex: 168">
+          <a-gltf-model mindar-face-occluder
+                        position="0 -0.3 0.15"
+                        rotation="0 0 0"
+                        scale="0.065 0.065 0.065"
+                        src="#headModel"></a-gltf-model>
+        </a-entity>
 
         <!-- Forehead emote — anchor 10 = top of forehead -->
         <a-entity id="forehead-anchor" mindar-face-target="anchorIndex: 10">
