@@ -17,15 +17,12 @@
         var noFace   = document.getElementById("no-face");
         var showBee  = true;
 
-        // Alternate every 1s — MindAR hides the parent entity when no face,
-        // so emotes only render when a face is actually tracked.
         setInterval(function () {
           showBee = !showBee;
           beeImg.setAttribute("visible",   String(showBee));
           jolliImg.setAttribute("visible", String(!showBee));
         }, 1000);
 
-        // Hide the "point camera at face" prompt once AR is live
         document.querySelector("a-scene").addEventListener("arReady", function () {
           noFace.style.display = "none";
         });
@@ -35,14 +32,11 @@
       body {
         margin: 0;
         background: #000;
-        /* prevent iOS bounce/pull-to-refresh interfering with camera */
         overscroll-behavior: none;
-        /* prevent accidental text selection on tap */
         -webkit-user-select: none;
         user-select: none;
       }
       html, body {
-        /* fill viewport on iOS Safari including notch area */
         height: 100%;
         height: -webkit-fill-available;
       }
@@ -51,7 +45,6 @@
         position: absolute;
         width: 100%;
         height: 100%;
-        /* prevent scroll/zoom gestures cancelling camera on mobile */
         touch-action: none;
       }
       #no-face {
@@ -73,7 +66,6 @@
       #top-bar {
         position: fixed;
         top: 0; left: 0; right: 0;
-        /* push content below notch/status bar on iOS */
         padding-top: max(12px, env(safe-area-inset-top));
         padding-left: max(16px, env(safe-area-inset-left));
         padding-right: max(16px, env(safe-area-inset-right));
@@ -92,7 +84,6 @@
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
-        /* 48px min touch target for mobile */
         min-width: 48px;
         min-height: 48px;
         -webkit-tap-highlight-color: transparent;
@@ -120,12 +111,10 @@
 
         <a-camera active="false" position="0 0 0"></a-camera>
 
-        <!-- head occluder — required for face mesh to initialise -->
         <a-entity mindar-face-target="anchorIndex: 168">
           <a-gltf-model mindar-face-occluder position="0 -0.3 0.15" rotation="0 0 0" scale="0.065 0.065 0.065" src="#headModel"></a-gltf-model>
         </a-entity>
 
-        <!-- anchor 168 = nose bridge, emotes offset up to forehead -->
         <a-entity id="anchor-168" mindar-face-target="anchorIndex: 168">
           <a-image id="bee-img"
                    src="#bee-tex"
