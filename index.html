@@ -14,41 +14,91 @@
       AFRAME.registerComponent('emote-switcher', {
         init: function () {
           this._showBee     = true;
-          this._popElapsed  = 0;       // -1 = done, >=0 = animating
-          this._firstSwitch = true;
+          this._popElapsed  = -1;
+          this._wasSmiling  = false;
+          this._smileFrames = 0;
+          this._ready       = false;
           var self = this;
 
           document.querySelector('a-scene').addEventListener('arReady', function () {
             document.getElementById('no-face').style.display = 'none';
-            // kick off the very first popup
-            self._popElapsed = 0;
           });
 
           setInterval(function () {
             self._showBee = !self._showBee;
-            self._popElapsed = 0; // restart popup on every switch
           }, 1000);
         },
 
         tick: function (time, timeDelta) {
-          var bee   = document.getElementById('bee-img');
-          var jolli = document.getElementById('jolli-img');
-          if (!bee || !jolli) return;
+          if (!this._ready) {
+            this._bee    = document.getElementById('bee-img');
+            this._jolli  = document.getElementById('jolli-img');
+            this._anchor = document.getElementById('anchor-168');
+            this._lm61   = document.getElementById('lm-61');
+            this._lm291  = document.getElementById('lm-291');
+            this._lm13   = document.getElementById('lm-13');
+            this._lm14   = document.getElementById('lm-14');
+            if (!this._bee || !this._lm61) return;
+            this._ready = true;
+          }
 
-          bee.object3D.visible   = this._showBee;
-          jolli.object3D.visible = !this._showBee;
+          if (!this._anchor.object3D.visible) {
+            this._bee.object3D.visible   = false;
+            this._jolli.object3D.visible = false;
+            this._smileFrames = 0;
+            this._popElapsed  = -1;
+            this._wasSmiling  = false;
+            return;
+          }
 
-          if (this._popElapsed >= 0 && this._popElapsed < 500) {
-            var t = this._popElapsed / 500;
-            var s = t < 0.55
-              ? (t / 0.55) * 1.35
-              : 1.35 - ((t - 0.55) / 0.45) * 0.35;
-            bee.object3D.scale.set(s, s, s);
-            jolli.object3D.scale.set(s, s, s);
-            this._popElapsed += timeDelta;
-          } else if (this._popElapsed >= 500) {
-            bee.object3D.scale.set(1, 1, 1);
-            jolli.object3D.scale.set(1, 1, 1);
+          var e61  = this._lm61.object3D.matrix.elements;
+          var e291 = this._lm291.object3D.matrix.elements;
+          var e13  = this._lm13.object3D.matrix.elements;
+          var e14  = this._lm14.object3D.matrix.elements;
+
+          var faceWidth  = Math.abs(e61[12] - e291[12]);
+          var cornerAvgY = (e61[13] + e291[13]) / 2;
+          var upperLipY  = e13[13];
+          var lowerLipY  = e14[13];
+
+          // Sensitive thresholds — catches small smiles, ignores neutral
+          var cornersUp = faceWidth > 0 && (cornerAvgY - upperLipY) / faceWidth > 0.08;
+          var mouthOpen = faceWidth > 0 && (upperLipY - lowerLipY) / faceWidth > 0.12;
+          var rawSmile  = cornersUp || mouthOpen;
+
+          // Fast rise (4 frames), fast fall (3 per frame) — responsive but stable
+          if (rawSmile) { this._smileFrames = Math.min(this._smileFrames + 1, 8); }
+          else          { this._smileFrames = Math.max(this._smileFrames - 3, 0); }
+
+          var smiling = this._smileFrames >= 4;
+
+          if (smiling && !this._wasSmiling) {
+            this._popElapsed = 0; // trigger popup on new smile
+          }
+          this._wasSmiling = smiling;
+
+          if (smiling) {
+            this._bee.object3D.visible   = this._showBee;
+            this._jolli.object3D.visible = !this._showBee;
+
+            if (this._popElapsed >= 0 && this._popElapsed < 500) {
+              var t = this._popElapsed / 500;
+              var s = t < 0.55
+                ? (t / 0.55) * 1.35
+                : 1.35 - ((t - 0.55) / 0.45) * 0.35;
+              this._bee.object3D.scale.set(s, s, s);
+              this._jolli.object3D.scale.set(s, s, s);
+              this._popElapsed += timeDelta;
+            } else if (this._popElapsed >= 500) {
+              this._bee.object3D.scale.set(1, 1, 1);
+              this._jolli.object3D.scale.set(1, 1, 1);
+              this._popElapsed = -1;
+            }
+          } else {
+            this._bee.object3D.visible   = false;
+            this._jolli.object3D.visible = false;
+            this._bee.object3D.scale.set(1, 1, 1);
+            this._jolli.object3D.scale.set(1, 1, 1);
             this._popElapsed = -1;
           }
         }
@@ -155,6 +205,11 @@
                    transparent="true"
                    visible="false"></a-image>
         </a-entity>
+
+        <a-entity id="lm-61"  mindar-face-target="anchorIndex: 61"></a-entity>
+        <a-entity id="lm-291" mindar-face-target="anchorIndex: 291"></a-entity>
+        <a-entity id="lm-13"  mindar-face-target="anchorIndex: 13"></a-entity>
+        <a-entity id="lm-14"  mindar-face-target="anchorIndex: 14"></a-entity>
       </a-scene>
     </div>
   </body>
