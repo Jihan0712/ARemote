@@ -11,21 +11,95 @@
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        var beeImg   = document.getElementById("bee-img");
-        var jolliImg = document.getElementById("jolli-img");
-        var noFace   = document.getElementById("no-face");
-        var showBee  = true;
+      AFRAME.registerComponent('smile-detector', {
+        init: function () {
+          this.showBee      = true;
+          this._ready       = false;
+          this._smileFrames = 0;
+          this._popElapsed  = -1;
+          this._wasSmiling  = false;
+          var self = this;
+          setInterval(function () { self.showBee = !self.showBee; }, 1000);
+          this.el.addEventListener('targetLost', function () {
+            var nf = document.getElementById('no-face');
+            nf.querySelector('span').textContent = '😶';
+            nf.querySelector('p').textContent    = 'Point your camera at a face';
+            nf.style.display = 'flex';
+          });
+          this.el.addEventListener('targetFound', function () {
+            document.getElementById('no-face').style.display = 'none';
+          });
+        },
+        tick: function (time, timeDelta) {
+          if (!this._ready) {
+            this._bee    = document.getElementById('bee-img');
+            this._jolli  = document.getElementById('jolli-img');
+            this._anchor = document.getElementById('anchor-168');
+            this._lm61   = document.getElementById('lm-61');
+            this._lm291  = document.getElementById('lm-291');
+            this._lm13   = document.getElementById('lm-13');
+            this._lm14   = document.getElementById('lm-14');
+            if (!this._bee || !this._lm61) return;
+            this._ready = true;
+          }
+          if (!this._anchor.object3D.visible) {
+            this._bee.object3D.visible   = false;
+            this._jolli.object3D.visible = false;
+            this._smileFrames = 0;
+            this._popElapsed  = -1;
+            this._wasSmiling  = false;
+            return;
+          }
 
-        setInterval(function () {
-          showBee = !showBee;
-          beeImg.setAttribute("visible",   String(showBee));
-          jolliImg.setAttribute("visible", String(!showBee));
-        }, 1000);
+          var e61  = this._lm61.object3D.matrix.elements;
+          var e291 = this._lm291.object3D.matrix.elements;
+          var e13  = this._lm13.object3D.matrix.elements;
+          var e14  = this._lm14.object3D.matrix.elements;
 
-        document.querySelector("a-scene").addEventListener("arReady", function () {
-          noFace.style.display = "none";
-        });
+          var cornerAvgY = (e61[13] + e291[13]) / 2;
+          var upperLipY  = e13[13];
+          var lowerLipY  = e14[13];
+          var faceWidth  = Math.abs(e61[12] - e291[12]);
+
+          var cornersUp = faceWidth > 0 && (cornerAvgY - upperLipY) / faceWidth > 0.15;
+          var mouthOpen = faceWidth > 0 && (upperLipY - lowerLipY) / faceWidth > 0.20;
+          var rawSmile  = cornersUp || mouthOpen;
+
+          if (rawSmile) { this._smileFrames = Math.min(this._smileFrames + 1, 10); }
+          else          { this._smileFrames = Math.max(this._smileFrames - 2, 0);  }
+
+          var smiling = this._smileFrames >= 6;
+
+          if (smiling && !this._wasSmiling) {
+            this._popElapsed = 0;
+          }
+          this._wasSmiling = smiling;
+
+          if (smiling) {
+            this._bee.object3D.visible   = this.showBee;
+            this._jolli.object3D.visible = !this.showBee;
+
+            if (this._popElapsed >= 0 && this._popElapsed < 500) {
+              var t  = this._popElapsed / 500;
+              var s  = t < 0.55
+                ? (t / 0.55) * 1.35
+                : 1.35 - ((t - 0.55) / 0.45) * 0.35;
+              this._bee.object3D.scale.set(s, s, s);
+              this._jolli.object3D.scale.set(s, s, s);
+              this._popElapsed += timeDelta;
+            } else if (this._popElapsed >= 500) {
+              this._bee.object3D.scale.set(1, 1, 1);
+              this._jolli.object3D.scale.set(1, 1, 1);
+              this._popElapsed = -1;
+            }
+          } else {
+            this._bee.object3D.visible   = false;
+            this._jolli.object3D.visible = false;
+            this._bee.object3D.scale.set(1, 1, 1);
+            this._jolli.object3D.scale.set(1, 1, 1);
+            this._popElapsed = -1;
+          }
+        }
       });
     </script>
     <style>
@@ -102,7 +176,7 @@
     </div>
 
     <div class="example-container">
-      <a-scene mindar-face embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+      <a-scene mindar-face smile-detector embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         <a-assets>
           <a-asset-item id="headModel" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/face-tracking/assets/sparkar/headOccluder.glb"></a-asset-item>
           <img id="bee-tex"   src="assets/emotes/bee.png" />
@@ -121,7 +195,7 @@
                    position="0 0.7 0"
                    width="1.2" height="1.2"
                    transparent="true"
-                   visible="true"></a-image>
+                   visible="false"></a-image>
           <a-image id="jolli-img"
                    src="#jolli-tex"
                    position="0 0.7 0"
@@ -129,6 +203,11 @@
                    transparent="true"
                    visible="false"></a-image>
         </a-entity>
+
+        <a-entity id="lm-61"  mindar-face-target="anchorIndex: 61"></a-entity>
+        <a-entity id="lm-291" mindar-face-target="anchorIndex: 291"></a-entity>
+        <a-entity id="lm-13"  mindar-face-target="anchorIndex: 13"></a-entity>
+        <a-entity id="lm-14"  mindar-face-target="anchorIndex: 14"></a-entity>
       </a-scene>
     </div>
   </body>
