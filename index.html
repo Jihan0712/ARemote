@@ -8,6 +8,25 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#000000" />
     <title>JollibeeAR</title>
+    <!-- Register service worker FIRST so COOP/COEP headers are active before A-Frame/MindAR load -->
+    <script>
+      (function () {
+        if (!('serviceWorker' in navigator)) return;
+        // Already isolated — SW is active, nothing to do
+        if (self.crossOriginIsolated) {
+          navigator.serviceWorker.register('./sw.js');
+          return;
+        }
+        navigator.serviceWorker.register('./sw.js').then(function (reg) {
+          // SW just installed for the first time — reload so it can intercept fetches
+          if (!reg.active) {
+            reg.installing.addEventListener('statechange', function (e) {
+              if (e.target.state === 'activated') location.reload();
+            });
+          }
+        });
+      })();
+    </script>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
     <script>
