@@ -8,37 +8,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#000000" />
     <title>JollibeeAR</title>
-    <!-- Register service worker FIRST so COOP/COEP headers are active before A-Frame/MindAR load -->
-    <script>
-      (function () {
-        if (!('serviceWorker' in navigator)) return;
-
-        // Page is already cross-origin isolated — SW is doing its job, just keep it registered
-        if (self.crossOriginIsolated) {
-          navigator.serviceWorker.register('./sw.js');
-          return;
-        }
-
-        // Guard: never reload more than once per session to avoid infinite loops
-        if (sessionStorage.getItem('coi-reloaded')) return;
-
-        navigator.serviceWorker.register('./sw.js').then(function (reg) {
-          function doReload() {
-            sessionStorage.setItem('coi-reloaded', '1');
-            location.reload();
-          }
-          // SW already active (was registered from a previous visit) — reload so it intercepts this page load
-          if (reg.active) { doReload(); return; }
-          // SW is installing or waiting — reload once it activates
-          var sw = reg.installing || reg.waiting;
-          if (sw) {
-            sw.addEventListener('statechange', function (ev) {
-              if (ev.target.state === 'activated') doReload();
-            });
-          }
-        });
-      })();
-    </script>
+    <!-- COI service worker: injects COOP/COEP so MindAR WASM works on GitHub Pages -->
+    <script src="./sw.js"></script>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
     <script>
