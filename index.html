@@ -8,123 +8,69 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#000000" />
     <title>JollibeeAR</title>
-    <!-- COI service worker: injects COOP/COEP so MindAR WASM works on GitHub Pages -->
-    <script src="./sw.js"></script>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('smile-detector', {
+      AFRAME.registerComponent('emote-switcher', {
         init: function () {
-          this.showBee      = true;
-          this._ready       = false;
-          this._smileFrames = 0;
-          this._popElapsed  = -1;
-          this._wasSmiling  = false;
+          this._showBee     = true;
+          this._popElapsed  = 0;       // -1 = done, >=0 = animating
+          this._firstSwitch = true;
           var self = this;
-          setInterval(function () { self.showBee = !self.showBee; }, 1000);
-          this.el.addEventListener('targetLost', function () {
-            var nf = document.getElementById('no-face');
-            nf.querySelector('span').textContent = '😶';
-            nf.querySelector('p').textContent    = 'Point your camera at a face';
-            nf.style.display = 'flex';
-          });
-          this.el.addEventListener('targetFound', function () {
+
+          document.querySelector('a-scene').addEventListener('arReady', function () {
             document.getElementById('no-face').style.display = 'none';
+            // kick off the very first popup
+            self._popElapsed = 0;
           });
+
+          setInterval(function () {
+            self._showBee = !self._showBee;
+            self._popElapsed = 0; // restart popup on every switch
+          }, 1000);
         },
+
         tick: function (time, timeDelta) {
-          if (!this._ready) {
-            this._bee    = document.getElementById('bee-img');
-            this._jolli  = document.getElementById('jolli-img');
-            this._anchor = document.getElementById('anchor-168');
-            this._lm61   = document.getElementById('lm-61');
-            this._lm291  = document.getElementById('lm-291');
-            this._lm13   = document.getElementById('lm-13');
-            this._lm14   = document.getElementById('lm-14');
-            if (!this._bee || !this._lm61) return;
-            this._ready = true;
-          }
-          if (!this._anchor.object3D.visible) {
-            this._bee.object3D.visible   = false;
-            this._jolli.object3D.visible = false;
-            this._smileFrames = 0;
-            this._popElapsed  = -1;
-            this._wasSmiling  = false;
-            return;
-          }
+          var bee   = document.getElementById('bee-img');
+          var jolli = document.getElementById('jolli-img');
+          if (!bee || !jolli) return;
 
-          var e61  = this._lm61.object3D.matrix.elements;
-          var e291 = this._lm291.object3D.matrix.elements;
-          var e13  = this._lm13.object3D.matrix.elements;
-          var e14  = this._lm14.object3D.matrix.elements;
+          bee.object3D.visible   = this._showBee;
+          jolli.object3D.visible = !this._showBee;
 
-          var cornerAvgY = (e61[13] + e291[13]) / 2;
-          var upperLipY  = e13[13];
-          var lowerLipY  = e14[13];
-          var faceWidth  = Math.abs(e61[12] - e291[12]);
-
-          var cornersUp = faceWidth > 0 && (cornerAvgY - upperLipY) / faceWidth > 0.15;
-          var mouthOpen = faceWidth > 0 && (upperLipY - lowerLipY) / faceWidth > 0.20;
-          var rawSmile  = cornersUp || mouthOpen;
-
-          if (rawSmile) { this._smileFrames = Math.min(this._smileFrames + 1, 10); }
-          else          { this._smileFrames = Math.max(this._smileFrames - 2, 0);  }
-
-          var smiling = this._smileFrames >= 6;
-
-          if (smiling && !this._wasSmiling) {
-            this._popElapsed = 0;
-          }
-          this._wasSmiling = smiling;
-
-          if (smiling) {
-            this._bee.object3D.visible   = this.showBee;
-            this._jolli.object3D.visible = !this.showBee;
-
-            if (this._popElapsed >= 0 && this._popElapsed < 500) {
-              var t  = this._popElapsed / 500;
-              var s  = t < 0.55
-                ? (t / 0.55) * 1.35
-                : 1.35 - ((t - 0.55) / 0.45) * 0.35;
-              this._bee.object3D.scale.set(s, s, s);
-              this._jolli.object3D.scale.set(s, s, s);
-              this._popElapsed += timeDelta;
-            } else if (this._popElapsed >= 500) {
-              this._bee.object3D.scale.set(1, 1, 1);
-              this._jolli.object3D.scale.set(1, 1, 1);
-              this._popElapsed = -1;
-            }
-          } else {
-            this._bee.object3D.visible   = false;
-            this._jolli.object3D.visible = false;
-            this._bee.object3D.scale.set(1, 1, 1);
-            this._jolli.object3D.scale.set(1, 1, 1);
+          if (this._popElapsed >= 0 && this._popElapsed < 500) {
+            var t = this._popElapsed / 500;
+            var s = t < 0.55
+              ? (t / 0.55) * 1.35
+              : 1.35 - ((t - 0.55) / 0.45) * 0.35;
+            bee.object3D.scale.set(s, s, s);
+            jolli.object3D.scale.set(s, s, s);
+            this._popElapsed += timeDelta;
+          } else if (this._popElapsed >= 500) {
+            bee.object3D.scale.set(1, 1, 1);
+            jolli.object3D.scale.set(1, 1, 1);
             this._popElapsed = -1;
           }
         }
       });
     </script>
     <style>
-      *, *::before, *::after { box-sizing: border-box; }
-      html {
-        height: 100%;
-        height: -webkit-fill-available;
-        height: 100svh;
-      }
       body {
         margin: 0;
-        height: 100%;
-        height: -webkit-fill-available;
-        height: 100svh;
         background: #000;
         overscroll-behavior: none;
         -webkit-user-select: none;
         user-select: none;
       }
+      html, body {
+        height: 100%;
+        height: -webkit-fill-available;
+      }
       .example-container {
         overflow: hidden;
-        position: fixed;
-        inset: 0;
+        position: absolute;
+        width: 100%;
+        height: 100%;
         touch-action: none;
       }
       #no-face {
@@ -134,16 +80,15 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: clamp(8px, 2vw, 16px);
-        padding: 0 max(16px, env(safe-area-inset-left));
+        gap: 12px;
         color: rgba(255,255,255,0.85);
         pointer-events: none;
         z-index: 50;
         font-family: sans-serif;
         text-align: center;
       }
-      #no-face span { font-size: clamp(2rem, 10vw, 3.5rem); }
-      #no-face p    { font-size: clamp(0.85rem, 4vw, 1.1rem); }
+      #no-face span { font-size: 3rem; }
+      #no-face p    { font-size: 1rem; }
       #top-bar {
         position: fixed;
         top: 0; left: 0; right: 0;
@@ -159,18 +104,14 @@
         font-family: sans-serif;
         color: #fff;
       }
-      #app-title { font-weight: bold; font-size: clamp(0.95rem, 4.5vw, 1.2rem); }
+      #app-title { font-weight: bold; font-size: 1.1rem; }
       #snap-btn {
         background: none;
         border: none;
-        font-size: clamp(1.25rem, 5.5vw, 1.6rem);
+        font-size: 1.5rem;
         cursor: pointer;
         min-width: 48px;
         min-height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
       }
     </style>
@@ -187,7 +128,7 @@
     </div>
 
     <div class="example-container">
-      <a-scene mindar-face smile-detector embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+      <a-scene mindar-face emote-switcher embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         <a-assets>
           <a-asset-item id="headModel" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/face-tracking/assets/sparkar/headOccluder.glb"></a-asset-item>
           <img id="bee-tex"   src="assets/emotes/bee.png" />
@@ -206,7 +147,7 @@
                    position="0 0.7 0"
                    width="1.2" height="1.2"
                    transparent="true"
-                   visible="false"></a-image>
+                   visible="true"></a-image>
           <a-image id="jolli-img"
                    src="#jolli-tex"
                    position="0 0.7 0"
@@ -214,11 +155,6 @@
                    transparent="true"
                    visible="false"></a-image>
         </a-entity>
-
-        <a-entity id="lm-61"  mindar-face-target="anchorIndex: 61"></a-entity>
-        <a-entity id="lm-291" mindar-face-target="anchorIndex: 291"></a-entity>
-        <a-entity id="lm-13"  mindar-face-target="anchorIndex: 13"></a-entity>
-        <a-entity id="lm-14"  mindar-face-target="anchorIndex: 14"></a-entity>
       </a-scene>
     </div>
   </body>
