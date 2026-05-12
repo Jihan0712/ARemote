@@ -12,16 +12,28 @@
     <script>
       (function () {
         if (!('serviceWorker' in navigator)) return;
-        // Already isolated — SW is active, nothing to do
+
+        // Page is already cross-origin isolated — SW is doing its job, just keep it registered
         if (self.crossOriginIsolated) {
           navigator.serviceWorker.register('./sw.js');
           return;
         }
+
+        // Guard: never reload more than once per session to avoid infinite loops
+        if (sessionStorage.getItem('coi-reloaded')) return;
+
         navigator.serviceWorker.register('./sw.js').then(function (reg) {
-          // SW just installed for the first time — reload so it can intercept fetches
-          if (!reg.active) {
-            reg.installing.addEventListener('statechange', function (e) {
-              if (e.target.state === 'activated') location.reload();
+          function doReload() {
+            sessionStorage.setItem('coi-reloaded', '1');
+            location.reload();
+          }
+          // SW already active (was registered from a previous visit) — reload so it intercepts this page load
+          if (reg.active) { doReload(); return; }
+          // SW is installing or waiting — reload once it activates
+          var sw = reg.installing || reg.waiting;
+          if (sw) {
+            sw.addEventListener('statechange', function (ev) {
+              if (ev.target.state === 'activated') doReload();
             });
           }
         });
