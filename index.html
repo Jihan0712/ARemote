@@ -409,6 +409,18 @@
         var headerImg = new Image();
         headerImg.src = 'assets/header.png';
 
+        // Keep composite canvas continuously updated so photo capture is instant
+        var bgRafId = null;
+        function startBgLoop() {
+          if (bgRafId) return;
+          ensureCompCanvas();
+          function loop() { drawComposite(); bgRafId = requestAnimationFrame(loop); }
+          bgRafId = requestAnimationFrame(loop);
+        }
+        document.querySelector('a-scene').addEventListener('arReady', startBgLoop);
+        // Fallback: start after 4s if arReady never fires
+        setTimeout(startBgLoop, 4000);
+
         function getGlCanvas() {
           return document.querySelector('a-scene canvas') ||
                  document.querySelector('canvas.a-canvas');
@@ -542,20 +554,18 @@
           var comp = ensureCompCanvas();
           if (!comp) return;
           flashScreen();
-          requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-              drawComposite();
-              comp.toBlob(function (blob) {
-                if (blob) downloadBlob(blob, 'jollibee-ar-' + Date.now() + '.jpg');
-              }, 'image/jpeg', 0.92);
-            });
-          });
+          // Canvas is kept current by the background loop — encode immediately
+          comp.toBlob(function (blob) {
+            if (blob) downloadBlob(blob, 'jollibee-ar-' + Date.now() + '.jpg');
+          }, 'image/jpeg', 0.92);
         }
 
         function startRecording() {
           var comp = ensureCompCanvas();
           if (!comp || isRecording) return;
-          rafId  = requestAnimationFrame(compLoop);
+          // Pause bg loop; recording loop takes over
+          if (bgRafId) { cancelAnimationFrame(bgRafId); bgRafId = null; }
+          rafId = requestAnimationFrame(compLoop);
           chunks = [];
           var stream   = comp.captureStream(30);
           var types    = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
@@ -571,6 +581,8 @@
           };
           mediaRecorder.onstop = function () {
             if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            // Resume bg loop after recording
+            startBgLoop();
             var ext  = (mediaRecorder.mimeType || '').includes('mp4') ? 'mp4' : 'webm';
             var blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'video/webm' });
             downloadBlob(blob, 'jollibee-ar-' + Date.now() + '.' + ext);
@@ -583,10 +595,14 @@
 
         function stopRecording() {
           if (!isRecording || !mediaRecorder) return;
-          mediaRecorder.stop();
           isRecording = false;
           captureBtn.classList.remove('recording');
           recBadge.style.display = 'none';
+          // Keep drawing for 600ms so the encoder pipeline drains before we stop
+          setTimeout(function () {
+            mediaRecorder.requestData();
+            setTimeout(function () { mediaRecorder.stop(); }, 100);
+          }, 600);
         }
 
         // ── Capture button (tap = photo, hold = video) ──
@@ -622,9 +638,16 @@
           window.location.reload();
         });
 
-        // ── Share button — show share.png overlay ──
+        // ── Share button — native share sheet ──
         document.getElementById('share-btn').addEventListener('click', function () {
-          shareOverlay.classList.add('visible');
+          if (navigator.share) {
+            navigator.share({
+              title: 'JollibeeAR — WOW BIDA!',
+              url: window.location.href
+            }).catch(function () {}); // ignore cancel
+          } else {
+            shareOverlay.classList.add('visible');
+          }
         });
 
         document.getElementById('share-close').addEventListener('click', function () {
