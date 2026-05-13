@@ -424,12 +424,21 @@
           // Draw AR overlay
           compCtx.drawImage(gl, 0, 0, w, h);
 
-          // Draw header on top so it always appears in captures
+          // Draw header at exactly the same position/size as seen on screen
           if (headerImg.complete && headerImg.naturalWidth > 0) {
-            var hH    = Math.round(w * 0.128);  // ~48px on 375px-wide canvas
-            var hW    = Math.round(headerImg.naturalWidth * hH / headerImg.naturalHeight);
-            var padT  = Math.round(w * 0.032);  // ~12px top padding
-            compCtx.drawImage(headerImg, Math.round((w - hW) / 2), padT, hW, hH);
+            var headerEl = document.querySelector('#app-title img');
+            if (headerEl) {
+              var rect   = headerEl.getBoundingClientRect();
+              var scaleX = w / window.innerWidth;
+              var scaleY = h / window.innerHeight;
+              compCtx.drawImage(
+                headerImg,
+                rect.left   * scaleX,
+                rect.top    * scaleY,
+                rect.width  * scaleX,
+                rect.height * scaleY
+              );
+            }
           }
         }
 
