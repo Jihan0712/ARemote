@@ -401,10 +401,9 @@
         }
 
         function ensureCompCanvas() {
-          var gl = getGlCanvas();
-          if (!gl) return null;
-          var w = gl.width  || gl.offsetWidth;
-          var h = gl.height || gl.offsetHeight;
+          var dpr = window.devicePixelRatio || 1;
+          var w   = Math.round(window.innerWidth  * dpr);
+          var h   = Math.round(window.innerHeight * dpr);
           if (!compCanvas || compCanvas.width !== w || compCanvas.height !== h) {
             compCanvas = document.createElement('canvas');
             compCanvas.width  = w;
@@ -414,52 +413,70 @@
           return compCanvas;
         }
 
-        // Draw src into dest rect using object-fit:cover cropping (used for GL canvas sizing check)
-        function ensureCompCanvas() {
+        // Detect whether MindAR is displaying the canvas mirrored via CSS transform
+        function isGlMirrored() {
           var gl = getGlCanvas();
-          if (!gl) return null;
-          var w = gl.width  || gl.offsetWidth;
-          var h = gl.height || gl.offsetHeight;
-          if (!compCanvas || compCanvas.width !== w || compCanvas.height !== h) {
-            compCanvas = document.createElement('canvas');
-            compCanvas.width  = w;
-            compCanvas.height = h;
-            compCtx = compCanvas.getContext('2d');
+          if (!gl) return false;
+          var t = window.getComputedStyle(gl).transform || '';
+          // scaleX(-1) renders as matrix(-1, 0, 0, 1, 0, 0)
+          return t.indexOf('matrix(-1') !== -1 || t.indexOf('scale(-1') !== -1;
+        }
+
+        // Draw src cropped with object-fit:cover into (dx,dy,dw,dh)
+        function drawCover(src, dx, dy, dw, dh) {
+          var sw = src.videoWidth  || src.naturalWidth  || src.width  || 0;
+          var sh = src.videoHeight || src.naturalHeight || src.height || 0;
+          if (!sw || !sh) { compCtx.drawImage(src, dx, dy, dw, dh); return; }
+          var srcRatio  = sw / sh;
+          var destRatio = dw / dh;
+          var sx, sy, sW, sH;
+          if (srcRatio > destRatio) {
+            sH = sh; sW = sh * destRatio;
+            sx = (sw - sW) / 2; sy = 0;
+          } else {
+            sW = sw; sH = sw / destRatio;
+            sx = 0; sy = (sh - sH) / 2;
           }
-          return compCanvas;
+          compCtx.drawImage(src, sx, sy, sW, sH, dx, dy, dw, dh);
         }
 
         function drawComposite() {
-          var gl = getGlCanvas();
-          if (!compCanvas || !gl) return;
+          var gl    = getGlCanvas();
+          var video = getVideoEl();
+          if (!compCanvas) return;
           var w = compCanvas.width;
           var h = compCanvas.height;
           compCtx.clearRect(0, 0, w, h);
 
-          // MindAR applies CSS scaleX(-1) on the canvas element for display.
-          // Raw pixel data is unflipped, so we must mirror it ourselves to match
-          // what the user sees on screen. This applies to both front and back cameras.
+          // For front camera the raw video is un-mirrored (camera space).
+          // Flip only the video so it appears as a selfie mirror view.
+          // The GL canvas is NOT flipped — MindAR already bakes the mirror
+          // into the WebGL rendering so its pixels are in screen-correct orientation.
+          var needFlip = (currentFacing !== 'environment');
           compCtx.save();
-          compCtx.translate(w, 0);
-          compCtx.scale(-1, 1);
-          compCtx.drawImage(gl, 0, 0, w, h);
+          if (needFlip) {
+            compCtx.translate(w, 0);
+            compCtx.scale(-1, 1);
+          }
+          if (video && video.readyState >= 2) {
+            drawCover(video, 0, 0, w, h);
+          }
           compCtx.restore();
 
-          // Draw header at exactly the same position/size as seen on screen
+          // AR overlay drawn as-is (already in screen-correct / mirrored space)
+          if (gl) {
+            compCtx.drawImage(gl, 0, 0, w, h);
+          }
+
+          // Header baked at its exact on-screen position
           if (headerImg.complete && headerImg.naturalWidth > 0) {
             var headerEl = document.querySelector('#app-title img');
             if (headerEl) {
-              var rect   = headerEl.getBoundingClientRect();
-              var dpr    = window.devicePixelRatio || 1;
-              var scaleX = w / (window.innerWidth  * dpr);
-              var scaleY = h / (window.innerHeight * dpr);
-              compCtx.drawImage(
-                headerImg,
-                rect.left   * dpr * scaleX,
-                rect.top    * dpr * scaleY,
-                rect.width  * dpr * scaleX,
-                rect.height * dpr * scaleY
-              );
+              var rect = headerEl.getBoundingClientRect();
+              var dpr  = window.devicePixelRatio || 1;
+              compCtx.drawImage(headerImg,
+                rect.left  * dpr, rect.top    * dpr,
+                rect.width * dpr, rect.height * dpr);
             }
           }
         }
