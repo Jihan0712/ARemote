@@ -314,8 +314,10 @@
       <a-scene mindar-face emote-switcher embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true, preserveDrawingBuffer: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         <a-assets>
           <a-asset-item id="headModel" src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/examples/face-tracking/assets/sparkar/headOccluder.glb"></a-asset-item>
-          <img id="bee-tex"   src="assets/emotes/bee.png" />
-          <img id="jolli-tex" src="assets/emotes/Jolli.png" />
+          <img id="bee-tex"       src="assets/emotes/bee.png" />
+          <img id="jolli-tex"     src="assets/emotes/Jolli.png" />
+          <img id="back-bee-tex"   src="assets/emotes/back_bee.png" />
+          <img id="back-jolli-tex" src="assets/emotes/back_jolli.png" />
         </a-assets>
 
         <a-camera active="false" position="0 0 0"></a-camera>
@@ -387,15 +389,20 @@
         // Track which camera is active for correct mirroring
         var currentFacing = sessionStorage.getItem('cameraFacing') || 'user';
 
-        // MindAR always renders both video and GL in mirrored (selfie) space.
-        // Back camera: flip the whole container so both layers un-mirror together on screen.
-        // Also flip the anchor X scale so the emote tracks to the correct side.
+        // Back camera: un-mirror the container and swap to mirrored emote images.
         if (currentFacing === 'environment') {
           document.querySelector('.example-container').style.transform = 'scaleX(-1)';
-          document.querySelector('a-scene').addEventListener('loaded', function () {
-            var anchor = document.getElementById('anchor-168');
-            if (anchor) anchor.setAttribute('scale', '-1 1 1');
-          });
+          function swapBackEmotes() {
+            var bee   = document.getElementById('bee-img');
+            var jolli = document.getElementById('jolli-img');
+            if (bee)   bee.setAttribute('src',   '#back-bee-tex');
+            if (jolli) jolli.setAttribute('src', '#back-jolli-tex');
+          }
+          if (document.getElementById('bee-img')) {
+            swapBackEmotes();
+          } else {
+            document.querySelector('a-scene').addEventListener('loaded', swapBackEmotes);
+          }
         }
 
         // Preload header image so it is ready when compositing
