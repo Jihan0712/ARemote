@@ -1,92 +1,123 @@
-// ── Secure-context guard ──────────────────────────────────────────────────────
-// getUserMedia (camera) only works on HTTPS or localhost, not file://
-if (!window.isSecureContext) {
-  document.getElementById("insecure-banner").style.display = "flex";
-  throw new Error("Not a secure context — camera blocked.");
-}
+﻿/**
+ * main.js — Bootstrap module
+ * Wires UI buttons to CaptureController after AR is ready.
+ */
 
-// ── Config ────────────────────────────────────────────────────────────────────
-const SWAP_INTERVAL = 1000; // ms between emote swaps
+import { CaptureController } from './capture.js';
 
-// ── Bootstrap ─────────────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded", () => {
-  const beeImg   = document.getElementById("bee-img");
-  const jolliImg = document.getElementById("jolli-img");
-  const anchor   = document.getElementById("forehead-anchor");
-  const noFace   = document.getElementById("no-face");
-  const scene    = document.querySelector("a-scene");
+var capture = new CaptureController();
+var holdTimer = null;
+var isRecording = false;
 
-  let isTracking = false;
-  let showBee    = true;
+// ── DOM refs ─────────────────────────────────────────────────────────────────
 
-  // ── Emote alternation — only runs while a face is tracked ─────────────────
-  setInterval(() => {
-    if (!isTracking) return;
-    showBee = !showBee;
-    beeImg.setAttribute("visible",   String(showBee));
-    jolliImg.setAttribute("visible", String(!showBee));
-  }, SWAP_INTERVAL);
+var captureBtn    = document.getElementById('capture-btn');
+var captureInner  = document.getElementById('capture-inner');
+var recBadge      = document.getElementById('rec-badge');
+var cameraBtn     = document.getElementById('camera-btn');
+var shareBtn      = document.getElementById('share-btn');
+var shareOverlay  = document.getElementById('share-overlay');
+var shareClose    = document.getElementById('share-close');
 
-  // ── MindAR error handler ───────────────────────────────────────────────────
-  scene.addEventListener("arReady",  () => {
-    console.log("[AR] arReady — MindAR started");
-    // Check the video element MindAR created — if size is 0x0 the camera feed is broken
-    setTimeout(() => {
-      const video = document.querySelector("video");
-      if (!video) {
-        console.error("[AR] No <video> element found — camera feed missing entirely");
-      } else {
-        console.log(`[AR] video readyState=${video.readyState} size=${video.videoWidth}x${video.videoHeight} paused=${video.paused} srcObject=${!!video.srcObject}`);
-        if (video.videoWidth === 0) console.warn("[AR] Video has 0 width — frames may not be reaching TensorFlow");
-      }
-    }, 1500);
-  });
-  scene.addEventListener("arError",  (e) => {
-    console.error("[AR] arError", e.detail || e);
-    noFace.querySelector("span").textContent = "⚠️";
-    noFace.querySelector("p").textContent = "Camera access failed. Allow camera permission and reload.";
-  });
+// ── AR ready → start background loop ─────────────────────────────────────────
 
-  // ── Face-anchor tracking events ────────────────────────────────────────────
-  let noFaceTimer = setTimeout(() => {
-    if (!isTracking) {
-      console.warn("[AR] 10s — still no face detected. Check lighting & face the camera directly.");
-      noFace.querySelector("p").textContent = "No face found — face camera, improve lighting";
-    }
-  }, 10000);
-
-  anchor.addEventListener("targetFound", () => {
-    clearTimeout(noFaceTimer);
-    isTracking = true;
-    noFace.classList.add("hidden");
-    beeImg.setAttribute("visible",   String(showBee));
-    jolliImg.setAttribute("visible", String(!showBee));
-  });
-
-  anchor.addEventListener("targetLost", () => {
-    isTracking = false;
-    beeImg.setAttribute("visible",   "false");
-    jolliImg.setAttribute("visible", "false");
-    noFace.querySelector("span").textContent = "😶";
-    noFace.querySelector("p").textContent = "Point your camera at a face";
-    noFace.classList.remove("hidden");
-  });
-
-  // ── Screenshot ─────────────────────────────────────────────────────────────
-  // preserveDrawingBuffer: true is set on the renderer in index.html
-  document.getElementById("snap-btn").addEventListener("click", () => {
-    const flash = document.getElementById("flash");
-    flash.classList.remove("active");
-    void flash.offsetWidth; // reflow to restart animation
-    flash.classList.add("active");
-
-    const canvas = scene.canvas;
-    if (!canvas) return;
-    const link = document.createElement("a");
-    link.download = `jollibee-ar-${Date.now()}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  });
+document.addEventListener('ar-ready', function () {
+  capture.startBgLoop();
 });
 
+// ── Capture button ────────────────────────────────────────────────────────────
 
+captureBtn.addEventListener('pointerdown', function (e) {
+  e.preventDefault();
+  if (isRecording) return;
+
+  holdTimer = setTimeout(function () {
+    holdTimer = null;
+    isRecording = true;
+    captureBtn.classList.add('recording');
+    recBadge.style.display = 'block';
+    capture.startRecording();
+  }, 300);
+});
+
+captureBtn.addEventListener('pointerup', function (e) {
+  e.preventDefault();
+
+  if (holdTimer !== null) {
+    // Released before hold threshold → take photo
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    if (!isRecording) {
+      capture.takePhoto();
+      flashCapture();
+    }
+    return;
+  }
+
+  if (isRecording) {
+    isRecording = false;
+    captureBtn.classList.remove('recording');
+    recBadge.style.display = 'none';
+    capture.stopRecording();
+  }
+});
+
+captureBtn.addEventListener('pointercancel', function () {
+  if (holdTimer !== null) { clearTimeout(holdTimer); holdTimer = null; }
+  if (isRecording) {
+    isRecording = false;
+    captureBtn.classList.remove('recording');
+    recBadge.style.display = 'none';
+    capture.stopRecording();
+  }
+});
+
+// ── Flash feedback on photo ───────────────────────────────────────────────────
+
+function flashCapture() {
+  var flash = document.createElement('div');
+  flash.style.cssText = [
+    'position:fixed', 'top:0', 'right:0', 'bottom:0', 'left:0',
+    'background:#fff', 'opacity:0.55', 'pointer-events:none', 'z-index:200',
+    'transition:opacity 0.25s ease'
+  ].join(';');
+  document.body.appendChild(flash);
+  // Trigger reflow then fade out
+  flash.getBoundingClientRect();
+  flash.style.opacity = '0';
+  flash.addEventListener('transitionend', function () {
+    document.body.removeChild(flash);
+  });
+}
+
+// ── Camera toggle ─────────────────────────────────────────────────────────────
+
+cameraBtn.addEventListener('click', function () {
+  var current = sessionStorage.getItem('cameraFacing') || 'user';
+  sessionStorage.setItem('cameraFacing', current === 'user' ? 'environment' : 'user');
+  location.reload();
+});
+
+// ── Share button ──────────────────────────────────────────────────────────────
+
+shareBtn.addEventListener('click', function () {
+  var shareData = {
+    title: 'JollibeeAR',
+    url: location.href
+  };
+  if (navigator.share) {
+    navigator.share(shareData).catch(function () {});
+  } else {
+    shareOverlay.classList.add('visible');
+  }
+});
+
+shareClose.addEventListener('click', function () {
+  shareOverlay.classList.remove('visible');
+});
+
+shareOverlay.addEventListener('click', function (e) {
+  if (e.target === shareOverlay) {
+    shareOverlay.classList.remove('visible');
+  }
+});
