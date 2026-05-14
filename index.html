@@ -510,14 +510,20 @@
           }
 
           // Header baked centered, same visual size as on-screen preview.
-          // Derive pixel scale from actual canvas vs CSS viewport to avoid DPR mismatch.
+          // compCanvas uses min(dpr,2) as its scale — multiply rect by same factor.
           if (headerImg.complete && headerImg.naturalWidth > 0) {
-            var scaleY = window.innerHeight > 0 ? h / window.innerHeight : (window.devicePixelRatio || 1);
-            var hH = Math.round(24 * scaleY);
-            var hW = Math.round(headerImg.naturalWidth * hH / headerImg.naturalHeight);
-            var hX = Math.round((w - hW) / 2);
-            var hY = Math.round(12 * scaleY);
-            compCtx.drawImage(headerImg, hX, hY, hW, hH);
+            var scale    = Math.min(window.devicePixelRatio || 1, 2);
+            var headerEl = document.querySelector('#app-title img');
+            if (headerEl) {
+              var rect = headerEl.getBoundingClientRect();
+              compCtx.drawImage(
+                headerImg,
+                rect.left   * scale,
+                rect.top    * scale,
+                rect.width  * scale,
+                rect.height * scale
+              );
+            }
           }
         }
 
