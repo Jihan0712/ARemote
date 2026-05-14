@@ -9,6 +9,17 @@
     <meta name="theme-color" content="#000000" />
     <title>JollibeeAR</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script>
+      // Redirect iOS / Safari users to ios.html before loading heavy AR scripts
+      (function () {
+        var ua = navigator.userAgent;
+        var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        var isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+        if (isIOS || isSafari) {
+          window.location.replace('ios.html');
+        }
+      })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
     <script>
       AFRAME.registerComponent('emote-switcher', {
@@ -241,12 +252,12 @@
             if (gl) compCtx.drawImage(gl, 0, 0, w, h);
           }
           if (headerImg.complete && headerImg.naturalWidth > 0) {
-            var headerEl = document.querySelector('#app-title img');
-            if (headerEl) {
-              var rect = headerEl.getBoundingClientRect();
-              var dpr = window.devicePixelRatio || 1;
-              compCtx.drawImage(headerImg, rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
-            }
+            var hDpr = Math.min(window.devicePixelRatio || 1, 2);
+            var hH = Math.round(24 * hDpr);
+            var hW = Math.round(headerImg.naturalWidth * hH / headerImg.naturalHeight);
+            var hX = Math.round((w - hW) / 2);
+            var hY = Math.round(12 * hDpr);
+            compCtx.drawImage(headerImg, hX, hY, hW, hH);
           }
         }
 
