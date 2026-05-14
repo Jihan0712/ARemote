@@ -126,11 +126,18 @@
         var _orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
         navigator.mediaDevices.getUserMedia = function (constraints) {
           if (constraints && constraints.video) {
-            // iOS Safari requires { exact: 'environment' } to reliably open the back camera.
-            // For the front camera a plain string is fine.
             var facingConstraint = facing === 'environment' ? { exact: 'environment' } : 'user';
             if (typeof constraints.video === 'object') { constraints.video.facingMode = facingConstraint; }
             else { constraints.video = { facingMode: facingConstraint }; }
+          }
+          if (facing === 'environment') {
+            // { exact: 'environment' } can throw OverconstrainedError on some iOS devices.
+            // Retry with { ideal: 'environment' } as fallback so back camera always opens.
+            return _orig(constraints).catch(function () {
+              if (typeof constraints.video === 'object') { constraints.video.facingMode = { ideal: 'environment' }; }
+              else { constraints.video = { facingMode: { ideal: 'environment' } }; }
+              return _orig(constraints);
+            });
           }
           return _orig(constraints);
         };
@@ -220,24 +227,33 @@
         function getVideoEl() { return document.querySelector('video'); }
 
         function ensureCompCanvas() {
-          // Match the GL canvas exactly so drawImage is always a 1:1 pixel copy.
-          // A-Frame may use the full devicePixelRatio (e.g. 3× on iPhone Pro) which
-          // can differ from our capped value; using gl dimensions avoids any squish.
-          var gl = getGlCanvas();
-          var w, h;
-          if (gl && gl.width > 0 && gl.height > 0) {
-            w = gl.width; h = gl.height;
-          } else {
-            var dpr = Math.min(window.devicePixelRatio || 1, 2);
-            w = Math.round(window.innerWidth * dpr);
-            h = Math.round(window.innerHeight * dpr);
-          }
+          // Size comp canvas to the visible viewport (capped at 2x dpr).
+          // A-Frame on iOS can initialise its GL canvas before the dynamic toolbar
+          // settles, producing a different aspect ratio than what the user actually
+          // sees. Using window dimensions as the authority avoids that mismatch.
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          var w = Math.round(window.innerWidth  * dpr);
+          var h = Math.round(window.innerHeight * dpr);
           if (!compCanvas || compCanvas.width !== w || compCanvas.height !== h) {
             compCanvas = document.createElement('canvas');
             compCanvas.width = w; compCanvas.height = h;
             compCtx = compCanvas.getContext('2d');
           }
           return compCanvas;
+        }
+
+        // Draw the GL/WebGL canvas into the comp canvas with cover-crop behaviour.
+        // This prevents squish when A-Frame's internal pixel ratio differs from ours.
+        function drawGlCover(gl) {
+          if (!gl || !gl.width || !gl.height) return;
+          var sw = gl.width, sh = gl.height;
+          var dw = compCanvas.width, dh = compCanvas.height;
+          if (sw === dw && sh === dh) { compCtx.drawImage(gl, 0, 0); return; }
+          var srcRatio = sw / sh, destRatio = dw / dh;
+          var sx, sy, sW, sH;
+          if (srcRatio > destRatio) { sH = sh; sW = sh * destRatio; sx = (sw - sW) / 2; sy = 0; }
+          else                      { sW = sw; sH = sw / destRatio; sx = 0; sy = (sh - sH) / 2; }
+          compCtx.drawImage(gl, sx, sy, sW, sH, 0, 0, dw, dh);
         }
 
         function drawCover(src, dx, dy, dw, dh) {
@@ -260,13 +276,13 @@
             if (video && video.readyState >= 2) drawCover(video, 0, 0, w, h);
             if (gl) {
               compCtx.save(); compCtx.translate(w, 0); compCtx.scale(-1, 1);
-              compCtx.drawImage(gl, 0, 0, w, h); compCtx.restore();
+              drawGlCover(gl); compCtx.restore();
             }
           } else {
             compCtx.save(); compCtx.translate(w, 0); compCtx.scale(-1, 1);
             if (video && video.readyState >= 2) drawCover(video, 0, 0, w, h);
             compCtx.restore();
-            if (gl) compCtx.drawImage(gl, 0, 0, w, h);
+            if (gl) drawGlCover(gl);
           }
           if (headerImg.complete && headerImg.naturalWidth > 0) {
             var headerEl = document.querySelector('#app-title img');
@@ -324,7 +340,18 @@
 
         function downloadBlob(blob, filename) {
           if (isIOS()) {
-            // iOS Safari blocks <a download> — show preview overlay for manual save
+            // iOS Safari blocks <a download> entirely.
+            // 1st choice: Web Share API with files (iOS 15+) — pops the native share
+            //             sheet where the user taps "Save Image" / "Save Video" once.
+            // 2nd choice: preview overlay with long-press / video-options instructions.
+            if (navigator.canShare) {
+              var file = new File([blob], filename, { type: blob.type });
+              if (navigator.canShare({ files: [file] })) {
+                navigator.share({ files: [file], title: 'JollibeeAR' })
+                  .catch(function () { iosPreviewBlob(blob, filename); });
+                return;
+              }
+            }
             iosPreviewBlob(blob, filename);
             return;
           }
