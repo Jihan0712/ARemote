@@ -80,32 +80,21 @@ function _drawFrame() {
   //   are unflipped → flip both to match what's on screen.
 
   if (_facing === 'environment') {
-    // Video: flip to match the container's CSS scaleX(-1)
-    if (video && video.readyState >= 2) {
-      _ctx.save();
-      _ctx.translate(w, 0); _ctx.scale(-1, 1);
-      _drawCover(video, 0, 0, w, h);
-      _ctx.restore();
-    }
-    // GL: flip to match the container's CSS scaleX(-1)
-    if (gl) {
-      _ctx.save();
-      _ctx.translate(w, 0); _ctx.scale(-1, 1);
-      _ctx.drawImage(gl, 0, 0, w, h);
-      _ctx.restore();
-    }
+    // Back camera: CSS scaleX(-1) on the container is a visual-only transform —
+    // it does NOT change the raw pixel data we read via drawImage.
+    // Draw both layers straight; the capture will match the on-screen preview.
+    if (video && video.readyState >= 2) { _drawCover(video, 0, 0, w, h); }
+    if (gl) { _ctx.drawImage(gl, 0, 0, w, h); }
   } else {
-    // Front camera: flip video for selfie view
+    // Front camera: MindAR mirrors the emote in GL space for selfie view.
+    // Flip the video to match so both layers are consistently mirrored.
     if (video && video.readyState >= 2) {
       _ctx.save();
       _ctx.translate(w, 0); _ctx.scale(-1, 1);
       _drawCover(video, 0, 0, w, h);
       _ctx.restore();
     }
-    // GL: MindAR already renders the emote in selfie-mirrored space, draw as-is
-    if (gl) {
-      _ctx.drawImage(gl, 0, 0, w, h);
-    }
+    if (gl) { _ctx.drawImage(gl, 0, 0, w, h); }
   }
 
   // Header baked at its exact on-screen position.
