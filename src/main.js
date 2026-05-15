@@ -9,7 +9,9 @@ var capture = new CaptureController();
 var holdTimer = null;
 var isRecording = false;
 
-// ── DOM refs ─────────────────────────────────────────────────────────────────
+// Start bg loop when AR is ready; 4s fallback if event never fires
+document.addEventListener('ar-ready', function () { capture.startBgLoop(); });
+setTimeout(function () { capture.startBgLoop(); }, 4000);
 
 var captureBtn    = document.getElementById('capture-btn');
 var captureInner  = document.getElementById('capture-inner');
@@ -18,12 +20,6 @@ var cameraBtn     = document.getElementById('camera-btn');
 var shareBtn      = document.getElementById('share-btn');
 var shareOverlay  = document.getElementById('share-overlay');
 var shareClose    = document.getElementById('share-close');
-
-// ── AR ready → start background loop ─────────────────────────────────────────
-
-document.addEventListener('ar-ready', function () {
-  capture.startBgLoop();
-});
 
 // ── Capture button ────────────────────────────────────────────────────────────
 
