@@ -10,7 +10,14 @@ var holdTimer = null;
 var isRecording = false;
 
 // Start bg loop when AR is ready; 4s fallback if event never fires
-document.addEventListener('ar-ready', function () { capture.startBgLoop(); });
+document.addEventListener('ar-ready', function () {
+  capture.startBgLoop();
+  // Chrome: force the A-Frame canvas to resync with the video dimensions
+  // once MindAR is live. Without this the projection matrix is calculated
+  // from the pre-camera-stream viewport, shifting the emote off the forehead.
+  var scene = document.querySelector('a-scene');
+  if (scene && scene.resize) { scene.resize(); }
+});
 setTimeout(function () { capture.startBgLoop(); }, 4000);
 
 var captureBtn    = document.getElementById('capture-btn');
