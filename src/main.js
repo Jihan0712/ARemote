@@ -117,3 +117,12 @@ shareOverlay.addEventListener('click', function (e) {
     shareOverlay.classList.remove('visible');
   }
 });
+
+// ── Chrome resize handling ────────────────────────────────────────────────────
+
+window.addEventListener('resize', function () {
+  var scene = document.querySelector('a-scene');
+  if (scene && scene.renderer) {
+    scene.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+});

@@ -20,6 +20,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#000000" />
+    <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*">
     <title>JollibeeAR</title>
 
     <link rel="stylesheet" href="src/style.css" />
@@ -68,11 +69,12 @@
 
     <div class="ar-container">
       <a-scene
-        mindar-face
+        mindar-face="autoStart: true"
         emote-switcher
         embedded
+        autoplay
         color-space="sRGB"
-        renderer="colorManagement: true, physicallyCorrectLights: true, preserveDrawingBuffer: true"
+        renderer="colorManagement: true; physicallyCorrectLights: true; preserveDrawingBuffer: true; alpha: true; antialias: true"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false"
       >
@@ -132,5 +134,22 @@
     </div>
 
     <script type="module" src="src/main.js"></script>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var applyVideoAttrs = function () {
+          var video = document.querySelector('video');
+          if (!video) {
+            requestAnimationFrame(applyVideoAttrs);
+            return;
+          }
+          video.setAttribute('playsinline', 'true');
+          video.setAttribute('muted', 'true');
+          video.setAttribute('autoplay', 'true');
+          video.setAttribute('webkit-playsinline', 'true');
+        };
+        applyVideoAttrs();
+      });
+    </script>
   </body>
 </html>

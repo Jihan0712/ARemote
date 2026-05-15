@@ -12,6 +12,7 @@ html, body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 /* ── AR container ── */
@@ -206,4 +207,8 @@ html, body {
   justify-content: center;
   font-family: sans-serif;
   touch-action: manipulation;
+}
+
+canvas {
+  touch-action: none;
 }
