@@ -12,11 +12,13 @@ var isRecording = false;
 // Start bg loop when AR is ready; 4s fallback if event never fires
 document.addEventListener('ar-ready', function () {
   capture.startBgLoop();
-  // Chrome: force the A-Frame canvas to resync with the video dimensions
-  // once MindAR is live. Without this the projection matrix is calculated
-  // from the pre-camera-stream viewport, shifting the emote off the forehead.
-  var scene = document.querySelector('a-scene');
-  if (scene && scene.resize) { scene.resize(); }
+  // Chrome: give MindAR 200ms to finish setting its projection matrix, then
+  // dispatch a synthetic resize. This causes A-Frame to resize its renderer
+  // AND triggers MindAR's own resize handlers so the projection recalibrates
+  // to the actual viewport — fixing emote misplacement on Chrome.
+  setTimeout(function () {
+    window.dispatchEvent(new Event('resize'));
+  }, 200);
 });
 setTimeout(function () { capture.startBgLoop(); }, 4000);
 
@@ -129,7 +131,9 @@ shareOverlay.addEventListener('click', function (e) {
 
 window.addEventListener('resize', function () {
   var scene = document.querySelector('a-scene');
-  if (scene && scene.renderer) {
-    scene.renderer.setSize(window.innerWidth, window.innerHeight);
-  }
+  // Use scene.resize() rather than renderer.setSize() directly:
+  // A-Frame updates both the GL canvas and the camera component, then
+  // MindAR overrides the camera projection on the next tick with its
+  // own calibration — keeping the AR overlay correctly placed.
+  if (scene && scene.resize) { scene.resize(); }
 });

@@ -39,8 +39,19 @@
         var _orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
         navigator.mediaDevices.getUserMedia = function (constraints) {
           if (constraints && constraints.video) {
-            if (typeof constraints.video === 'object') { constraints.video.facingMode = facing; }
-            else { constraints.video = { facingMode: facing }; }
+            if (typeof constraints.video === 'object') {
+              constraints.video.facingMode = facing;
+              // Ideal 16:9 resolution so MindAR's projection calibrates
+              // consistently across browsers (Chrome may default to 4:3)
+              if (!constraints.video.width)  constraints.video.width  = { ideal: 1280 };
+              if (!constraints.video.height) constraints.video.height = { ideal: 720 };
+            } else {
+              constraints.video = {
+                facingMode: facing,
+                width:  { ideal: 1280 },
+                height: { ideal: 720 }
+              };
+            }
           }
           return _orig(constraints);
         };
@@ -142,20 +153,33 @@
     <script type="module" src="src/main.js"></script>
 
     <script>
-      document.addEventListener('DOMContentLoaded', function () {
-        var applyVideoAttrs = function () {
-          var video = document.querySelector('video');
-          if (!video) {
-            requestAnimationFrame(applyVideoAttrs);
-            return;
+      // MutationObserver fires the instant MindAR inserts its <video> element,
+      // ensuring playsinline/muted are set BEFORE Chrome attempts autoplay.
+      (function () {
+        function applyVideoAttrs(video) {
+          video.setAttribute('playsinline', '');
+          video.setAttribute('muted', '');
+          video.setAttribute('autoplay', '');
+          video.setAttribute('webkit-playsinline', '');
+          video.muted = true;
+        }
+        var observer = new MutationObserver(function (mutations) {
+          for (var m = 0; m < mutations.length; m++) {
+            var nodes = mutations[m].addedNodes;
+            for (var n = 0; n < nodes.length; n++) {
+              var node = nodes[n];
+              if (node.tagName === 'VIDEO') {
+                applyVideoAttrs(node); observer.disconnect(); return;
+              }
+              var vids = node.querySelectorAll ? node.querySelectorAll('video') : [];
+              if (vids.length) {
+                applyVideoAttrs(vids[0]); observer.disconnect(); return;
+              }
+            }
           }
-          video.setAttribute('playsinline', 'true');
-          video.setAttribute('muted', 'true');
-          video.setAttribute('autoplay', 'true');
-          video.setAttribute('webkit-playsinline', 'true');
-        };
-        applyVideoAttrs();
-      });
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      })();
     </script>
   </body>
 </html>
