@@ -24,7 +24,27 @@
     <title>JollibeeAR</title>
 
     <link rel="stylesheet" href="src/style.css" />
-
+  <!-- Chrome: patch createElement so every <video> is born muted + playsinline.
+       MutationObserver callbacks are microtasks and fire AFTER MindAR's
+       synchronous play() call, so Chrome's autoplay check races and blocks it.
+       Patching at element-creation time is fully race-free. -->
+  <script>
+    (function () {
+      var _origCreate = document.createElement.bind(document);
+      document.createElement = function (tag) {
+        var el = _origCreate(tag);
+        if (typeof tag === 'string' && tag.toLowerCase() === 'video') {
+          el.muted = true;
+          el.playsInline = true;
+          el.setAttribute('playsinline', '');
+          el.setAttribute('muted', '');
+          el.setAttribute('autoplay', '');
+          el.setAttribute('webkit-playsinline', '');
+        }
+        return el;
+      };
+    })();
+  </script>
     <!-- A-Frame + MindAR must load before ar.js registers its component -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
@@ -53,7 +73,16 @@
               };
             }
           }
-          return _orig(constraints);
+          return _orig(constraints).catch(function (err) {
+            console.error('[JollibeeAR] Camera error:', err.name, err.message);
+            if (err.name === 'NotAllowedError' ||
+                err.name === 'PermissionDeniedError' ||
+                err.name === 'SecurityError') {
+              var errEl = document.getElementById('camera-error');
+              if (errEl) errEl.style.display = 'flex';
+            }
+            throw err;
+          });
         };
       })();
     </script>
@@ -76,6 +105,13 @@
 
     <div id="no-face">
       <img src="assets/noface.png" alt="Smile ka na para lumabas ang WOW BIDA!" />
+    </div>
+
+    <!-- Shown when Chrome blocks camera access -->
+    <div id="camera-error">
+      <p>Camera access is required for this experience.<br>
+         Please allow camera in your browser settings, then reload.</p>
+      <button onclick="location.reload()">Reload</button>
     </div>
 
     <div class="ar-container">
@@ -152,34 +188,6 @@
 
     <script type="module" src="src/main.js"></script>
 
-    <script>
-      // MutationObserver fires the instant MindAR inserts its <video> element,
-      // ensuring playsinline/muted are set BEFORE Chrome attempts autoplay.
-      (function () {
-        function applyVideoAttrs(video) {
-          video.setAttribute('playsinline', '');
-          video.setAttribute('muted', '');
-          video.setAttribute('autoplay', '');
-          video.setAttribute('webkit-playsinline', '');
-          video.muted = true;
-        }
-        var observer = new MutationObserver(function (mutations) {
-          for (var m = 0; m < mutations.length; m++) {
-            var nodes = mutations[m].addedNodes;
-            for (var n = 0; n < nodes.length; n++) {
-              var node = nodes[n];
-              if (node.tagName === 'VIDEO') {
-                applyVideoAttrs(node); observer.disconnect(); return;
-              }
-              var vids = node.querySelectorAll ? node.querySelectorAll('video') : [];
-              if (vids.length) {
-                applyVideoAttrs(vids[0]); observer.disconnect(); return;
-              }
-            }
-          }
-        });
-        observer.observe(document.documentElement, { childList: true, subtree: true });
-      })();
-    </script>
+    <!-- video muting handled by the createElement patch in <head> -->
   </body>
 </html>

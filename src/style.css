@@ -33,6 +33,38 @@ a-scene {
   height: 100%;
 }
 
+/* ── Camera denied overlay ── */
+#camera-error {
+  position: fixed;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 1000;
+  text-align: center;
+  color: #fff;
+  padding: 28px;
+  gap: 20px;
+}
+#camera-error p {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+#camera-error button {
+  padding: 12px 28px;
+  background: #e8251f;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ── No-face overlay ── */
 #no-face {
   position: fixed;

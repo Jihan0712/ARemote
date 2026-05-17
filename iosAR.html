@@ -1,99 +1,90 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#000000" />
+    <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*">
     <title>JollibeeAR</title>
 
     <link rel="stylesheet" href="src/style.css" />
+
+    <!-- Safari/Chrome: patch createElement so every <video> is born muted + playsinline.
+         MindAR's synchronous play() races the MutationObserver microtask;
+         patching at element-creation time is fully race-free. -->
+    <script>
+      (function () {
+        var _origCreate = document.createElement.bind(document);
+        document.createElement = function (tag) {
+          var el = _origCreate(tag);
+          if (typeof tag === 'string' && tag.toLowerCase() === 'video') {
+            el.muted = true;
+            el.playsInline = true;
+            el.setAttribute('playsinline', '');
+            el.setAttribute('muted', '');
+            el.setAttribute('autoplay', '');
+            el.setAttribute('webkit-playsinline', '');
+          }
+          return el;
+        };
+      })();
+    </script>
 
     <!-- A-Frame + MindAR must load before ar.js registers its component -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
     <script src="src/ar.js"></script>
-
-    <style>
-      /* ── Start-gate overlay (iOS requires user gesture before camera) ── */
-      #start-gate {
-        display: none;
-        position: fixed;
-        top: 0; right: 0; bottom: 0; left: 0;
-        z-index: 9999;
-        background: #e31837;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 24px;
-      }
-      #start-gate.visible { display: flex; }
-      #start-gate img.gate-logo {
-        width: min(60vw, 220px);
-        filter: drop-shadow(0 4px 16px rgba(0,0,0,.4));
-      }
-      #start-gate p {
-        color: #fff;
-        font-family: system-ui, sans-serif;
-        font-size: clamp(14px, 4vw, 18px);
-        text-align: center;
-        max-width: 300px;
-        margin: 0;
-        opacity: .9;
-      }
-      #start-btn {
-        background: #ffd700;
-        color: #1a0000;
-        border: none;
-        border-radius: 999px;
-        padding: 14px 40px;
-        font-size: clamp(16px, 4.5vw, 20px);
-        font-weight: 800;
-        font-family: system-ui, sans-serif;
-        cursor: pointer;
-        box-shadow: 0 4px 20px rgba(0,0,0,.25);
-        -webkit-tap-highlight-color: transparent;
-        transition: transform .1s, box-shadow .1s;
-      }
-      #start-btn:active { transform: scale(.96); box-shadow: 0 2px 10px rgba(0,0,0,.2); }
-
-      /* ── Unsupported browser banner ── */
-      #unsupported {
-        display: none;
-        position: fixed;
-        top: 0; right: 0; bottom: 0; left: 0;
-        z-index: 10000;
-        background: #1a0000;
-        color: #fff;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 32px;
-        gap: 16px;
-        font-family: system-ui, sans-serif;
-      }
-      #unsupported.visible { display: flex; }
-      #unsupported h2 { margin: 0; font-size: clamp(18px, 5vw, 24px); }
-      #unsupported p  { margin: 0; opacity: .8; font-size: clamp(13px, 3.5vw, 16px); }
-    </style>
   </head>
   <body>
+    <!-- getUserMedia intercept: must run before MindAR touches the camera -->
+    <script>
+      (function () {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+        var facing = sessionStorage.getItem('cameraFacing') || 'user';
+        var _orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = function (constraints) {
+          if (constraints && constraints.video) {
+            if (typeof constraints.video === 'object') {
+              constraints.video.facingMode = facing;
+              if (!constraints.video.width)  constraints.video.width  = { ideal: 1280 };
+              if (!constraints.video.height) constraints.video.height = { ideal: 720 };
+            } else {
+              constraints.video = {
+                facingMode: facing,
+                width:  { ideal: 1280 },
+                height: { ideal: 720 }
+              };
+            }
+          }
+          return _orig(constraints).catch(function (err) {
+            console.error('[JollibeeAR] Camera error:', err.name, err.message);
+            if (err.name === 'NotAllowedError' ||
+                err.name === 'PermissionDeniedError' ||
+                err.name === 'SecurityError') {
+              var errEl = document.getElementById('camera-error');
+              if (errEl) errEl.style.display = 'flex';
+            }
+            throw err;
+          });
+        };
+      })();
+    </script>
 
-    <!-- Unsupported browser banner -->
-    <div id="unsupported">
-      <h2>Browser not supported</h2>
-      <p>Please open this page in Safari (iOS) or Chrome (Android / Desktop) to use the AR experience.</p>
-    </div>
-
-    <!-- Start-gate: iOS Safari requires a user gesture before getUserMedia -->
-    <div id="start-gate">
-      <img class="gate-logo" src="assets/header.png" alt="JollibeeAR" />
-      <p>Tap the button below to start your AR experience!</p>
-      <button id="start-btn">Start AR ✨</button>
-    </div>
+    <!-- Back-camera: mirror the AR container to display correctly on screen -->
+    <script>
+      (function () {
+        if ((sessionStorage.getItem('cameraFacing') || 'user') === 'environment') {
+          document.addEventListener('DOMContentLoaded', function () {
+            var el = document.querySelector('.ar-container');
+            if (el) el.style.transform = 'scaleX(-1)';
+          });
+        }
+      })();
+    </script>
 
     <div id="top-bar">
       <img src="assets/header.png" alt="JollibeeAR" />
@@ -103,13 +94,20 @@
       <img src="assets/noface.png" alt="Smile ka na para lumabas ang WOW BIDA!" />
     </div>
 
+    <!-- Shown when Safari blocks camera access -->
+    <div id="camera-error">
+      <p>Camera access is required for this experience.<br>
+         Please allow camera in your browser settings, then reload.</p>
+      <button onclick="location.reload()">Reload</button>
+    </div>
+
     <div class="ar-container">
       <a-scene
         mindar-face
         emote-switcher
         embedded
         color-space="sRGB"
-        renderer="colorManagement: true, physicallyCorrectLights: true, preserveDrawingBuffer: true"
+        renderer="colorManagement: true; physicallyCorrectLights: true; preserveDrawingBuffer: true; alpha: true"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false"
       >
@@ -168,107 +166,12 @@
       <button id="share-close">&#x2715;</button>
     </div>
 
-    <!-- iOS compatibility bootstrap — runs before main.js -->
-    <script>
-    (function () {
-      'use strict';
-
-      /* 1. Feature detection */
-      var hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-      var hasWebGL = (function () {
-        try {
-          var c = document.createElement('canvas');
-          return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
-        } catch (e) { return false; }
-      })();
-
-      if (!hasGetUserMedia || !hasWebGL) {
-        document.getElementById('unsupported').classList.add('visible');
-        return;
-      }
-
-      /* 2. Camera facing */
-      var facing = sessionStorage.getItem('cameraFacing') || 'user';
-
-      /* 3. getUserMedia patch — normalise facingMode */
-      var _orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      navigator.mediaDevices.getUserMedia = function (constraints) {
-        if (constraints && constraints.video) {
-          if (typeof constraints.video === 'boolean') {
-            constraints.video = { facingMode: facing };
-          } else if (typeof constraints.video === 'object') {
-            constraints.video.facingMode = facing;
-          }
-        }
-        return _orig(constraints);
-      };
-
-      /* 4. Mirror AR container for back camera */
-      if (facing === 'environment') {
-        document.addEventListener('DOMContentLoaded', function () {
-          var el = document.querySelector('.ar-container');
-          if (el) el.style.transform = 'scaleX(-1)';
-        });
-      }
-
-      /* 5. MediaRecorder mimeType helper */
-      window.AR_getBestMimeType = function () {
-        var candidates = [
-          'video/webm;codecs=vp9,opus',
-          'video/webm;codecs=vp8,opus',
-          'video/webm',
-          'video/mp4;codecs=avc1',
-          'video/mp4',
-        ];
-        if (typeof MediaRecorder === 'undefined') return '';
-        for (var i = 0; i < candidates.length; i++) {
-          try { if (MediaRecorder.isTypeSupported(candidates[i])) return candidates[i]; } catch (e) {}
-        }
-        return '';
-      };
-
-      window.AR_getVideoExtension = function (mimeType) {
-        if (!mimeType) return 'mp4';
-        return mimeType.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
-      };
-
-      /* 6. iOS start-gate — user gesture required for camera */
-      var ua      = navigator.userAgent || '';
-      var isIOS   = /iPhone|iPad|iPod/i.test(ua);
-      var isIPadOS = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
-
-      if (isIOS || isIPadOS) {
-        document.addEventListener('DOMContentLoaded', function () {
-          var gate  = document.getElementById('start-gate');
-          var btn   = document.getElementById('start-btn');
-          var scene = document.querySelector('a-scene');
-
-          gate.classList.add('visible');
-
-          if (scene) {
-            scene.addEventListener('loaded', function () { scene.pause(); }, { once: true });
-          }
-
-          btn.addEventListener('click', function () {
-            gate.classList.remove('visible');
-            if (scene) scene.play();
-          }, { once: true });
-        });
-      }
-
-      /* 7. Passive touch listeners for iOS scroll performance */
-      var _origAEL = EventTarget.prototype.addEventListener;
-      EventTarget.prototype.addEventListener = function (type, fn, opts) {
-        if (typeof opts === 'boolean') {
-          if (['touchstart','touchmove','wheel','mousewheel'].indexOf(type) !== -1) {
-            opts = { capture: opts, passive: true };
-          }
-        }
-        return _origAEL.call(this, type, fn, opts);
-      };
-
-    })();
-    </script>
+    <div id="processing-overlay">
+      <div class="processing-box">
+        <div class="processing-spinner"></div>
+        <p>Processing video…</p>
+      </div>
+    </div>
 
     <script type="module" src="src/main.js"></script>
   </body>
