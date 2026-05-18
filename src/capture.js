@@ -122,7 +122,7 @@ function _download(blob, ext) {
   var url = URL.createObjectURL(blob);
   var a   = document.createElement('a');
   a.href = url;
-  a.download = 'jollibeeAR-' + Date.now() + '.' + ext;
+  a.download = 'WowBida-' + Date.now() + '.' + ext;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
 }

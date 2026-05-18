@@ -22,6 +22,7 @@
     <meta name="theme-color" content="#000000" />
     <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*">
     <title>JollibeeAR</title>
+    <link rel="icon" href="assets/icon.png" />
 
     <link rel="stylesheet" href="src/style.css" />
   <!-- Chrome: patch createElement so every <video> is born muted + playsinline.
@@ -107,6 +108,10 @@
       <img src="assets/noface.png" alt="Smile ka na para lumabas ang WOW BIDA!" />
     </div>
 
+    <div id="face-guide">
+      <img src="assets/faceshape.png" alt="" />
+    </div>
+
     <!-- Shown when Chrome blocks camera access -->
     <div id="camera-error">
       <p>Camera access is required for this experience.<br>
@@ -165,7 +170,7 @@
       </button>
       <div id="capture-wrap">
         <button id="capture-btn" title="Tap for photo, Hold for video">
-          <div id="capture-inner"></div>
+          <img src="assets/capture-button.png" alt="Capture" id="capture-inner" />
         </button>
         <div id="rec-badge">&#9679; REC</div>
       </div>

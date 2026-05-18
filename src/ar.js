@@ -29,6 +29,7 @@ function EmoteSwitcher() {
 
   // Cached DOM refs (populated on first tick)
   this._noFace = null;
+  this._faceGuide = null;
   this._bee    = null;
   this._jolli  = null;
   this._anchor = null;
@@ -42,7 +43,8 @@ function EmoteSwitcher() {
 }
 
 EmoteSwitcher.prototype._cacheRefs = function () {
-  this._noFace = document.getElementById('no-face');
+  this._noFace    = document.getElementById('no-face');
+  this._faceGuide = document.getElementById('face-guide');
   this._bee    = document.getElementById('bee-img');
   this._jolli  = document.getElementById('jolli-img');
   this._anchor = document.getElementById('anchor-168');
@@ -56,6 +58,7 @@ EmoteSwitcher.prototype._cacheRefs = function () {
 EmoteSwitcher.prototype._onFaceLost = function () {
   if (this._hideTimer) { clearTimeout(this._hideTimer); this._hideTimer = null; }
   this._noFace.style.display = 'flex';
+  if (this._faceGuide) this._faceGuide.style.display = 'flex';
   this._bee.object3D.visible   = false;
   this._jolli.object3D.visible = false;
   this._smileFrames = 0;
@@ -64,15 +67,7 @@ EmoteSwitcher.prototype._onFaceLost = function () {
 };
 
 EmoteSwitcher.prototype._onFaceFound = function () {
-  // Face is visible — schedule hide of no-face overlay
-  if (this._noFace.style.display !== 'none') {
-    if (!this._hideTimer) {
-      var nf = this._noFace;
-      this._hideTimer = setTimeout(function () { nf.style.display = 'none'; }, HIDE_NOFACE_DELAY);
-    }
-  } else {
-    if (this._hideTimer) { clearTimeout(this._hideTimer); this._hideTimer = null; }
-  }
+  if (this._hideTimer) { clearTimeout(this._hideTimer); this._hideTimer = null; }
 };
 
 EmoteSwitcher.prototype._detectSmile = function () {
@@ -129,9 +124,8 @@ EmoteSwitcher.prototype.tick = function (time, timeDelta) {
 
   this._onFaceFound();
 
-  // Immediately hide no-face when face is confirmed visible this frame
-  this._noFace.style.display = 'none';
-  if (this._hideTimer) { clearTimeout(this._hideTimer); this._hideTimer = null; }
+  // Face visible: hide guide immediately
+  if (this._faceGuide) this._faceGuide.style.display = 'none';
 
   var smileDetected = this._detectSmile();
 
@@ -141,6 +135,9 @@ EmoteSwitcher.prototype.tick = function (time, timeDelta) {
   var smiling = this._smileFrames >= SMILE_ON_FRAMES;
   if (smiling && !this._wasSmiling) { this._popElapsed = 0; }
   this._wasSmiling = smiling;
+
+  // Smile prompt: visible while face is found but not yet smiling
+  this._noFace.style.display = smiling ? 'none' : 'flex';
 
   this._updateEmotes(smiling, timeDelta);
 };
